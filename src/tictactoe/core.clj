@@ -5,7 +5,7 @@
 (def EMPTY-BOARD
   [[nil nil nil]
    [nil nil nil]
-   [nil nil nil]]) 
+   [nil nil nil]])
 
 (def NEW-GAME
   {:board EMPTY-BOARD
@@ -16,9 +16,8 @@
   {:x :o
    :o :x})
 
-(def optimize
-  {:x max-key
-   :o min-key})
+(def optimize {:x > :o <})
+(def worst-eval {:x -1 :o 1})
 
 (def symbol->char {nil "." :x "X" :o "O"})
 
@@ -57,8 +56,8 @@
 (defn result
   "Determines the result of the game given a board, nil if undecided."
   [board]
-  (or (some winner 
-            (list 
+  (or (some winner
+            (list
               (col-combo board 0)
               (col-combo board 1)
               (col-combo board 2)
@@ -68,7 +67,7 @@
               (nwse-combo board)
               (swne-combo board)))
       (when (not-any? nil? (flatten board))
-        :cats))) 
+        :cats)))
 
 (defn position->row-col
   "Maps a position number (as on a numpad) to [row col] for the board."
@@ -81,7 +80,7 @@
    (apply move game (position->row-col position)))
   ([{:keys [board player] :as game} row col]
    (let [board' (assoc-in board [row col] player)]
-     (-> game 
+     (-> game
          (assoc :board board')
          (assoc :player (opposite-player player))
          (assoc :result (result board'))))))
@@ -90,9 +89,9 @@
   "Returns a sequence of valid next game states."
   [{:keys [board result] :as game}]
   (when-not result
-    (apply concat 
+    (apply concat
            (for [row (range 3)]
-             (filter #(not (nil? %)) 
+             (filter #(not (nil? %))
                      (for [col (range 3)]
                        (let [e (get-in board [row col])]
                          (when-not e
@@ -101,20 +100,36 @@
 (defn evaluate
   "Evaluates the board, scoring between [-1,1]"
   [{:keys [result]}]
-  (cond (= result :x) 1.0 
+  (cond (= result :x) 1.0
         (= result :o) -1.0
         :else 0))
 
 (defn minimax
-  "Use minimax (no pruning) to find the best move."
-  [{:keys [player result] :as game} depth]
-  (if (or result (zero? depth))
-    (assoc game :eval (evaluate game))
-    (let [next-moves (map #(minimax % (dec depth)) (valid-moves game))
-          best-move (apply (optimize player) :eval next-moves)]
-      (assoc game 
-             :eval (:eval best-move)
-             :best-move best-move))))
+  "Use minimax with pruning to find the best move."
+  ([game]
+   (minimax game 9 nil))
+  ([game depth]
+   (minimax game depth nil))
+  ([{:keys [player result] :as game} depth must-beat-eval]
+   (let [better (-> player optimize)]
+     (if (or result (zero? depth))
+       (assoc game :eval (evaluate game))
+       (let [best-move (reduce
+                         (fn [best-move-so-far move]
+                           (if (or (not best-move-so-far)
+                                   (not must-beat-eval)
+                                   (better must-beat-eval (:eval best-move-so-far)))
+                             (let [move (minimax move (dec depth) (:eval best-move-so-far))]
+                               (if (or (not best-move-so-far)
+                                       (better (:eval move) (:eval best-move-so-far)))
+                                 move
+                                 best-move-so-far))
+                             (reduced best-move-so-far)))
+                         nil
+                         (valid-moves game))]
+         (assoc game
+                :eval (:eval best-move)
+                :best-move best-move))))))
 
 (defn board->string
   "Generates a string representation of the board."
