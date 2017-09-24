@@ -159,6 +159,6 @@
       (do
         (println "Enter a number using numpad (1-9) number or 'b' for the best move: ")
         (let [input (-> (read-line) str/trim read-string)]
-          (cond (= 'b input) (recur (-> game (minimax 9) :best-move))
-                (number? input) (recur (-> game (move input) (minimax 9)))
+          (cond (= 'b input) (recur (-> game (minimax) :best-move))
+                (number? input) (recur (-> game (move input) (minimax)))
                 :else (println "Got '" input "'.  Exiting...")))))))
